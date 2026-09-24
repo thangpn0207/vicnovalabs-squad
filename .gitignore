@@ -1,0 +1,33 @@
+# Secrets & Environment variables
+.env
+.env.local
+.env.*.local
+*.env
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Local IDE & Editor files
+.DS_Store
+*.swp
+*~
+.idea/
+.vscode/
+
+# Local Squad runtime artifacts & backups
+*.bak
+*.bak_*
+.squad_cache/
+.agents/
+scratch/
+tmp/
+*.log

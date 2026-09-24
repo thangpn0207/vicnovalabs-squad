@@ -1,0 +1,20 @@
+---
+description: Master squad orchestration and intent dispatching protocol
+globs: *
+alwaysApply: true
+---
+
+# Master Squad Orchestrator Rule
+
+When receiving user requests:
+1. Identify if the task matches specialized squad roles:
+   - Business Analysis / Specs $\rightarrow$ `ba-agent`
+   - UI/UX & Mockups $\rightarrow$ `design-agent`
+   - Architecture & Code $\rightarrow$ `dev-agent`
+   - Root-Cause Bugfix $\rightarrow$ `debug-agent`
+   - Acceptance Testing $\rightarrow$ `qa-agent`
+   - Copy & Growth $\rightarrow$ `marketing-agent`
+2. Follow Strict Human-in-the-Loop gates:
+   - Stop after creating implementation plans.
+   - Stop after presenting design options.
+3. Enforce closed-loop verification: Dev marks `READY_FOR_QA`, QA verifies and marks `DONE`.

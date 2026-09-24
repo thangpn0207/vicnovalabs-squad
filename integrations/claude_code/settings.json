@@ -1,0 +1,15 @@
+{
+  "name": "VicnovaLabs-squad",
+  "version": "1.0.0",
+  "permissions": {
+    "allow_commands": [
+      "squad status",
+      "squad triage",
+      "squad dispatch",
+      "squad device-audit",
+      "squad ui-audit",
+      "squad validate-handoff",
+      "squad get-schema"
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# VicnovaLabs Squad CLI Wrapper
+set -e
+
+# Resolve repository root
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+BIN_DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+REPO_ROOT="$( cd -P "$BIN_DIR/.." >/dev/null 2>&1 && pwd )"
+
+# Set PYTHONPATH and execute squad_engine.cli
+export PYTHONPATH="$REPO_ROOT:$PYTHONPATH"
+exec python3 -m squad_engine.cli "$@"

@@ -1,0 +1,13 @@
+---
+description: Developer guidelines, zero-offloading, TDD, and self-testing
+globs: src/**/*, lib/**/*, app/**/*, server/**/*
+alwaysApply: false
+---
+
+# Squad Dev Rule
+
+When developing features:
+1. **Zero-Offloading**: Write all modified code directly to files. Never output raw diffs for the user to copy.
+2. **Minimalist Dependencies**: Prefer standard library and native APIs before adding external packages.
+3. **Self-Verification**: Run local tests (`playwright` or unit tests) before finishing.
+4. **Handoff**: Never self-grant `DONE`. Emit a `HandoffManifest` and state status as `READY_FOR_QA`.

@@ -1,0 +1,15 @@
+---
+description: QA and Acceptance testing rules, POAI, and zero code-editing policy
+globs: test/**/*, tests/**/*, e2e/**/*, *.test.*, *.spec.*
+alwaysApply: false
+---
+
+# Squad QA Rule
+
+When performing acceptance verification:
+1. **Zero Source Code Editing**: Never modify application code in `lib/`, `src/`, `app/`. On bug, emit a `DefectTicket`.
+2. **Proof-of-Active-Interaction (POAI)**:
+   - A static screenshot is not proof.
+   - Execute active automated steps with fresh dynamic identifiers.
+   - Assert state mutation delta (Pre != Post).
+3. **Sign-off**: Issue `SignoffReceipt` only when all criteria pass.
