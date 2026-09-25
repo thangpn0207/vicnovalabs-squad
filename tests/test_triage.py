@@ -37,7 +37,7 @@ class TestTriage(unittest.TestCase):
         # Isolated suggest mode returns squad suggestion card
         res = dispatch_task("implement payment gateway API", mode="suggest")
         self.assertEqual(res["role"], "dev")
-        self.assertEqual(res["target_agent"], "dev-agent")
+        self.assertEqual(res["target_agent"], "squad-dev")
         self.assertTrue(res.get("squad_suggested"))
         self.assertIn("Squad Recommendation Card", res["dispatch_card_markdown"])
 
@@ -49,7 +49,7 @@ class TestTriage(unittest.TestCase):
         # Explicit squad summon returns full subagent dispatch card
         res_explicit = dispatch_task("gọi dev-agent implement payment gateway API")
         self.assertEqual(res_explicit["role"], "dev")
-        self.assertEqual(res_explicit["target_agent"], "dev-agent")
+        self.assertEqual(res_explicit["target_agent"], "squad-dev")
         self.assertEqual(res_explicit["execution_mode"], "subagent")
         self.assertIn("ZERO CODE-OFFLOADING", res_explicit["dispatch_card_markdown"])
 
@@ -80,12 +80,12 @@ class TestTriage(unittest.TestCase):
     def test_adversarial_dispatch_annotation(self):
         res = dispatch_task("lập test plan và kịch bản test cho luồng checkout")
         self.assertTrue(res.get("adversarial_review_active"))
-        self.assertEqual(res.get("skeptic_agent"), "dev-agent")
+        self.assertEqual(res.get("skeptic_agent"), "squad-dev")
         self.assertIn("ADVERSARIAL REVIEW ACTIVE", res["dispatch_card_markdown"])
 
         res_prd = dispatch_task("viết PRD đặc tả cho hệ thống auth")
         self.assertTrue(res_prd.get("adversarial_review_active"))
-        self.assertEqual(res_prd.get("skeptic_agent"), "debug-agent")
+        self.assertEqual(res_prd.get("skeptic_agent"), "squad-debug")
         self.assertIn("ADVERSARIAL REVIEW ACTIVE", res_prd["dispatch_card_markdown"])
 
 

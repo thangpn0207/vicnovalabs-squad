@@ -121,15 +121,22 @@ setup_antigravity() {
   local ADAPTER_DIR="$REPO_DIR/integrations/antigravity"
 
   if [ "$SCOPE" = "workspace" ]; then
-    local WORKSPACE_AGENTS="$PWD/.agents/agents"
-    echo "Installing Antigravity agents into local workspace: $WORKSPACE_AGENTS..."
+    echo "Configuring Antigravity for workspace: $PWD..."
     if [ "$DRY_RUN" = true ]; then
-      echo -e "${YELLOW}[DRY-RUN] Would create $WORKSPACE_AGENTS and copy agents/*.md${NC}"
+      echo -e "${YELLOW}[DRY-RUN] Would configure .squad_mode and ensure no static .agents/ read-only trap exists${NC}"
       return
     fi
-    mkdir -p "$WORKSPACE_AGENTS"
-    cp -f "$REPO_DIR/agents/"*.md "$WORKSPACE_AGENTS/"
-    echo -e "${GREEN}✓ Successfully synced 6 squad agents into local workspace: $WORKSPACE_AGENTS${NC}"
+    # Security & Execution Gate: Static .agents/agents/*.md files are parsed by Antigravity
+    # as read-only subagents (stripping write_to_file and replace_file_content) and create
+    # name collision errors with define_subagent. We ensure clean workspace state.
+    if [ -d "$PWD/.agents/agents" ]; then
+      echo -e "${YELLOW}Notice: Detected .agents/agents in workspace. Antigravity treats static files as read-only.${NC}"
+      echo -e "${YELLOW}Cleaning static read-only agents from workspace to enable full write permissions via define_subagent...${NC}"
+      rm -rf "$PWD/.agents/agents"
+    fi
+    echo "suggest" > "$PWD/.squad_mode"
+    echo -e "${GREEN}✓ Successfully configured Antigravity workspace mode (suggest) in $PWD/.squad_mode${NC}"
+    echo -e "${GREEN}✓ Antigravity subagents will be dynamically provisioned with full write permissions (enable_write_tools: true).${NC}"
   else
     echo "Installing Antigravity global plugin: $GLOBAL_TARGET..."
     if [ "$DRY_RUN" = true ]; then

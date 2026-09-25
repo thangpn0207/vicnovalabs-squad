@@ -1,0 +1,13 @@
+---
+description: Business analysis, Given-When-Then user stories, deterministic test ingress, and architecture decisions
+globs: docs/**/*, specs/**/*, prd/**/*, *.md
+alwaysApply: false
+---
+
+# Squad BA Rule
+
+When analyzing requirements or drafting specifications:
+1. **Deterministic Test Ingress**: Every feature specification MUST define how `squad-qa` autonomously targets and triggers the feature via Deep Links, Intent actions, or Semantic Test IDs.
+2. **Given-When-Then Acceptance Criteria**: Clearly delineate preconditions, user actions, and observable state mutations.
+3. **Architecture Decision Records (ADRs)**: For core architectures, auth/RBAC flows, or database migrations, emit structured `ArchitectureDecision` contracts.
+4. **Adversarial Gate**: Coordinate with `squad-debug` (Red Team Skeptic) and `squad-qa` (Testability Skeptic) to critique assumptions before handing off to `squad-dev`.

@@ -11,17 +11,18 @@ from typing import Dict, Any, List, Optional
 TYPED_HANDOFF_SCHEMAS = {
     "manifest": {
         "title": "HandoffManifest",
-        "description": "Structured hand-off payload from dev-agent to qa-agent upon feature completion",
+        "description": "Structured hand-off payload from squad-dev to squad-qa upon feature completion",
         "type": "object",
         "required": [
             "module",
             "modified_files",
             "self_test_result",
-            "verification_command",
-            "coverage_report"
+            "verification_command"
         ],
         "properties": {
             "module": {"type": "string", "description": "Module name or feature title"},
+            "requirement_ids": {"type": "list", "description": "Traceable requirement IDs, e.g. ['REQ-001', 'REQ-002']"},
+            "acceptance_criteria": {"type": "list", "description": "Specific acceptance criteria verified by self-test"},
             "modified_files": {"type": "list", "description": "List of newly created or edited files"},
             "routes_or_screens": {"type": "list", "description": "Interactive screens, routes, or UI components"},
             "test_endpoints": {"type": "list", "description": "API routes or service endpoints touched"},
@@ -31,12 +32,13 @@ TYPED_HANDOFF_SCHEMAS = {
             "coverage_report": {
                 "type": "dict",
                 "description": "Deterministic diff test coverage metrics (Line >= 85%, Branch >= 80%)"
-            }
+            },
+            "known_limitations": {"type": "list", "description": "Known edge-cases, partial implementations, or hardware constraints"}
         }
     },
     "defect": {
         "title": "DefectTicket",
-        "description": "Structured defect ticket from qa-agent to dev-agent or design-agent upon REJECT",
+        "description": "Structured defect ticket from squad-qa to squad-dev or squad-design upon REJECT",
         "type": "object",
         "required": ["ticket_id", "module", "severity", "repro_steps", "actual_behavior", "expected_behavior"],
         "properties": {
@@ -53,7 +55,7 @@ TYPED_HANDOFF_SCHEMAS = {
     },
     "decision": {
         "title": "ArchitectureDecision",
-        "description": "Structured architecture / system design proposal from ba-agent or dev-agent",
+        "description": "Structured architecture / system design proposal from squad-ba or squad-dev",
         "type": "object",
         "required": ["decision_id", "title", "context", "chosen_option", "consequences"],
         "properties": {
@@ -69,7 +71,7 @@ TYPED_HANDOFF_SCHEMAS = {
     },
     "acceptance": {
         "title": "SignoffReceipt",
-        "description": "Structured Proof-of-Active-Interaction acceptance receipt from qa-agent upon marking PASS",
+        "description": "Structured Proof-of-Active-Interaction acceptance receipt from squad-qa upon marking PASS",
         "type": "object",
         "required": [
             "module",
@@ -83,6 +85,7 @@ TYPED_HANDOFF_SCHEMAS = {
         ],
         "properties": {
             "module": {"type": "string", "description": "Module name verified"},
+            "requirement_ids": {"type": "list", "description": "Traceable requirement IDs verified by QA, e.g. ['REQ-001']"},
             "target_platforms": {"type": "list", "description": "All platforms tested"},
             "fresh_test_identifier": {"type": "string", "description": "Dynamic nonce/timestamp/unique entity name"},
             "interactive_journey": {"type": "list", "description": "Step-by-step automated interactive commands executed"},
@@ -92,37 +95,17 @@ TYPED_HANDOFF_SCHEMAS = {
             "log_inspection_audit": {"type": "dict", "description": "Log verification details (logcat_checked, terminal_checked, silent_errors_ruled_out)"},
             "visual_fidelity_score": {"type": "float", "description": "UI mockup match score (>= 0.85)"},
             "screenshot_evidence": {"type": "string", "description": "File path to visual proof screenshot demonstrating test completion and feature verification"},
+            "runner_exit_code": {"type": "number", "description": "Exit code from the test runner script (0 = pass). Oracle rejects if != 0."},
+            "evidence_dir": {"type": "string", "description": "Path to evidence directory containing screenshots, logs, and runner output."},
+            "result_status": {
+                "type": "string",
+                "enum": ["PASS", "PASS_WITH_WARNINGS", "FAIL", "BLOCKED", "SKIPPED", "INCONCLUSIVE"],
+                "description": "Granular test outcome status"
+            },
             "verdict": {"type": "string", "enum": ["PASS", "REJECT"]}
         }
     },
-    "signoff": {
-        "title": "SignoffReceipt",
-        "description": "Alias for acceptance schema",
-        "type": "object",
-        "required": [
-            "module",
-            "target_platforms",
-            "fresh_test_identifier",
-            "interactive_journey",
-            "state_mutation_delta",
-            "live_evidence",
-            "anti_deception_checks",
-            "verdict"
-        ],
-        "properties": {
-            "module": {"type": "string", "description": "Module name verified"},
-            "target_platforms": {"type": "list", "description": "All platforms tested"},
-            "fresh_test_identifier": {"type": "string", "description": "Dynamic nonce/timestamp/unique entity name"},
-            "interactive_journey": {"type": "list", "description": "Step-by-step automated interactive commands executed"},
-            "state_mutation_delta": {"type": "dict", "description": "Explicit Pre-State vs Post-State"},
-            "live_evidence": {"type": "string", "description": "Live logcat/console output with timestamp"},
-            "anti_deception_checks": {"type": "dict", "description": "Proof guarantees (no_passive_visual_only, all_target_devices_interacted, stale_data_ruled_out, silent_errors_ruled_out)"},
-            "log_inspection_audit": {"type": "dict", "description": "Log verification details (logcat_checked, terminal_checked, silent_errors_ruled_out)"},
-            "visual_fidelity_score": {"type": "float", "description": "UI mockup match score"},
-            "screenshot_evidence": {"type": "string", "description": "File path to visual proof screenshot demonstrating test completion and feature verification"},
-            "verdict": {"type": "string", "enum": ["PASS", "REJECT"]}
-        }
-    },
+
     "critique": {
         "title": "AdversarialCritique",
         "description": "Structured adversarial review and refutation payload from skeptic agent",
@@ -143,7 +126,7 @@ TYPED_HANDOFF_SCHEMAS = {
                 "enum": ["docs", "test", "architecture", "security"],
                 "description": "Domain of artifact under review"
             },
-            "skeptic_agent": {"type": "string", "description": "Agent acting as skeptic (debug-agent, qa-agent, dev-agent)"},
+            "skeptic_agent": {"type": "string", "description": "Agent acting as skeptic (squad-debug, squad-qa, squad-dev)"},
             "refuted_assumptions": {"type": "list", "description": "List of assumptions refuted or challenged"},
             "blindspots_and_edge_cases": {"type": "list", "description": "List of edge cases, race conditions, or blind spots"},
             "risk_level": {
@@ -161,8 +144,16 @@ TYPED_HANDOFF_SCHEMAS = {
     }
 }
 
+# P2-C: signoff is an alias for acceptance — single source of truth, no duplication
+TYPED_HANDOFF_SCHEMAS["signoff"] = TYPED_HANDOFF_SCHEMAS["acceptance"]
 
-def validate_handoff_payload(schema_type: str, data: Any) -> Dict[str, Any]:
+
+def validate_handoff_payload(
+    schema_type: str,
+    data: Any,
+    strict_evidence: bool = False,
+    strict_traceability: bool = False
+) -> Dict[str, Any]:
     """Validate a typed handoff dictionary against registered schemas with anti-deception and coverage checks."""
     s_key = schema_type.lower()
     schema = TYPED_HANDOFF_SCHEMAS.get(s_key)
@@ -185,6 +176,17 @@ def validate_handoff_payload(schema_type: str, data: Any) -> Dict[str, Any]:
             errors.append(f"Missing required field: '{req}'")
         elif data[req] is None or (isinstance(data[req], str) and not data[req].strip()):
             errors.append(f"Required field '{req}' cannot be empty")
+
+    # Strict Traceability Gate (Phase 4.1 & 5.2)
+    if strict_traceability and isinstance(data, dict):
+        req_ids = data.get("requirement_ids")
+        if s_key == "manifest":
+            if not req_ids or not isinstance(req_ids, list) or len(req_ids) == 0:
+                errors.append("Traceability Gate Violation: 'requirement_ids' is required on manifest (e.g. ['REQ-001']).")
+        elif s_key in ["acceptance", "signoff"]:
+            if not req_ids or not isinstance(req_ids, list) or len(req_ids) == 0:
+                errors.append("Traceability Gate Violation: 'requirement_ids' is required on acceptance to trace verification back to requirements.")
+
 
     # Check property types
     type_map = {
@@ -209,32 +211,19 @@ def validate_handoff_payload(schema_type: str, data: Any) -> Dict[str, Any]:
                 errors.append(f"Field '{prop}' value '{data[prop]}' not in allowed enum: {prop_def['enum']}")
 
     # Specialized Code Coverage Gate for Dev HandoffManifest
+    # Dev Test Contract: coverage metrics are optional metadata and do not block handoff
     if s_key == "manifest" and isinstance(data, dict):
         cov = data.get("coverage_report")
         if cov is not None:
             if not isinstance(cov, dict):
-                errors.append("Coverage Gate Violation: Field 'coverage_report' must be a JSON object.")
+                errors.append("Coverage Report: Field 'coverage_report' must be a JSON object if provided.")
             else:
                 line_pct = cov.get("line_coverage_pct")
                 branch_pct = cov.get("branch_coverage_pct")
-                tool = cov.get("tool")
-                meets = cov.get("meets_threshold")
-
-                if line_pct is None or not isinstance(line_pct, (int, float)):
-                    errors.append("Coverage Gate Violation: 'coverage_report.line_coverage_pct' must be a numeric percentage.")
-                elif float(line_pct) < 85.0:
-                    errors.append(f"Coverage Gate Violation: Line coverage ({line_pct}%) is below minimum threshold of 85.0%.")
-
-                if branch_pct is None or not isinstance(branch_pct, (int, float)):
-                    errors.append("Coverage Gate Violation: 'coverage_report.branch_coverage_pct' must be a numeric percentage.")
-                elif float(branch_pct) < 80.0:
-                    errors.append(f"Coverage Gate Violation: Branch coverage ({branch_pct}%) is below minimum threshold of 80.0%.")
-
-                if not tool or not str(tool).strip():
-                    errors.append("Coverage Gate Violation: 'coverage_report.tool' must be specified (e.g. pytest-cov, lcov, vitest).")
-
-                if meets is not True:
-                    errors.append("Coverage Gate Violation: 'coverage_report.meets_threshold' must be true.")
+                if line_pct is not None and not isinstance(line_pct, (int, float)):
+                    errors.append("Coverage Report: 'coverage_report.line_coverage_pct' must be numeric if provided.")
+                if branch_pct is not None and not isinstance(branch_pct, (int, float)):
+                    errors.append("Coverage Report: 'coverage_report.branch_coverage_pct' must be numeric if provided.")
 
     # Specialized Anti-Deception & Proof-of-Active-Interaction (POAI) checks
     if s_key in ["acceptance", "signoff"] and isinstance(data, dict):
@@ -251,9 +240,39 @@ def validate_handoff_payload(schema_type: str, data: Any) -> Dict[str, Any]:
             if checks.get("silent_errors_ruled_out") is not True:
                 errors.append("Anti-Deception Violation: 'silent_errors_ruled_out' must be true. Logcat/terminal logs must be inspected to ensure 0 unhandled exceptions or silent swallowed failures.")
 
+        live_evidence = data.get("live_evidence", "")
+        if not str(live_evidence).strip() or len(str(live_evidence).strip()) < 15:
+            errors.append("Empirical Evidence Violation: 'live_evidence' must contain concrete runtime output (logcat, process exit codes, or terminal output).")
+
         journey = data.get("interactive_journey", [])
         if not isinstance(journey, list) or len(journey) == 0:
             errors.append("Proof-of-Active-Interaction Violation: 'interactive_journey' cannot be empty. Must list automated click/fill/tap commands.")
+        else:
+            # Anti-Simulation Fraud & Non-Interactive Action Detection
+            fraud_patterns = [
+                "in-memory", "wire format simulation", "self-comparison",
+                "mock photo only", "mock transfer", "ram simulation"
+            ]
+            has_interactive_action = False
+            for step in journey:
+                act = ""
+                delta_obs = ""
+                if isinstance(step, dict):
+                    act = str(step.get("action", "")).lower()
+                    delta_obs = str(step.get("observed_delta", "")).lower()
+                elif isinstance(step, str):
+                    act = step.lower()
+
+                for fp in fraud_patterns:
+                    if fp in act or fp in delta_obs:
+                        errors.append(f"Simulation Fraud Violation: '{act or delta_obs}' indicates in-memory simulation. Acceptance testing must verify actual application/device interactions.")
+                        break
+
+                if any(k in act for k in ["click", "tap", "fill", "input", "press", "open", "navigate", "select", "send", "verify", "assert", "delivery", "stream", "test", "launch"]):
+                    has_interactive_action = True
+
+            if not has_interactive_action and len(journey) > 0:
+                errors.append("Proof-of-Active-Interaction Violation: 'interactive_journey' must contain active user interaction commands (click, tap, fill, navigate, send) or verified device assertions.")
 
         delta = data.get("state_mutation_delta", {})
         if isinstance(delta, dict):
@@ -277,6 +296,39 @@ def validate_handoff_payload(schema_type: str, data: Any) -> Dict[str, Any]:
             if missing:
                 errors.append(f"Multi-Device Blindspot Violation: Target platforms {list(missing)} had NO recorded interactive commands in 'interactive_journey'.")
 
+        # External Anti-Fraud Oracle: runner_exit_code + evidence_dir validation
+        # These are deterministic — agent cannot hallucinate filesystem state.
+        runner_exit_code = data.get("runner_exit_code")
+        evidence_dir = data.get("evidence_dir")
+        verdict = str(data.get("verdict", "")).upper()
+
+        # Phase 4.8 Anti-False-PASS Guard:
+        if verdict == "PASS" and strict_evidence:
+            if runner_exit_code is None:
+                errors.append("Anti-False-PASS Violation: 'runner_exit_code' is mandatory when verdict is 'PASS'. Cannot sign off without an execution record.")
+            if not evidence_dir:
+                errors.append("Anti-False-PASS Violation: 'evidence_dir' is mandatory when verdict is 'PASS'.")
+
+        if runner_exit_code is not None:
+            if not isinstance(runner_exit_code, (int, float)):
+                errors.append("Oracle Violation: 'runner_exit_code' must be a number.")
+            elif int(runner_exit_code) != 0:
+                errors.append(
+                    f"Oracle Violation: Test runner exited with code {int(runner_exit_code)} "
+                    f"(expected 0). Acceptance REJECTED by External Anti-Fraud Oracle."
+                )
+
+        if evidence_dir and isinstance(evidence_dir, str):
+            try:
+                from .evidence_oracle import validate_evidence_bundle
+                oracle_result = validate_evidence_bundle(evidence_dir)
+                if not oracle_result.get("valid"):
+                    for oe in oracle_result.get("errors", []):
+                        errors.append(f"Oracle Violation: {oe}")
+            except ImportError:
+                pass  # evidence_oracle not available — skip filesystem validation
+
+
     return {
         "valid": len(errors) == 0,
         "schema_type": schema_type,
@@ -286,16 +338,28 @@ def validate_handoff_payload(schema_type: str, data: Any) -> Dict[str, Any]:
     }
 
 
-def format_dispatch_card(target_agent: str, role: str, phase: str, platform: str, skills: List[str], constraints: List[str]) -> str:
+def format_dispatch_card(
+    target_agent: str,
+    role: str,
+    phase: str,
+    platform: str,
+    skills: List[str],
+    constraints: List[str],
+    stack_name: Optional[str] = None
+) -> str:
     """Format structured markdown card for IDE agent dispatching."""
     skills_fmt = ", ".join([f"`{s}`" for s in skills]) if skills else "`none`"
     lines = [
         f"### 🚀 Squad Dispatch Card: [{target_agent}]",
         f"- **Role**: `{role}`",
         f"- **Active Phase**: `{phase}` ({platform.upper()})",
+    ]
+    if stack_name:
+        lines.append(f"- **Target Stack**: `{stack_name}`")
+    lines.extend([
         f"- **Authorized Skills**: {skills_fmt}",
         "- **Discipline Constraints**:"
-    ]
+    ])
     for c in constraints:
         lines.append(f"  - {c}")
     return "\n".join(lines)
@@ -335,7 +399,8 @@ def format_squad_suggestion_card(
     platform: str,
     skills: List[str],
     complexity_score: int = 2,
-    rationale: Optional[str] = None
+    rationale: Optional[str] = None,
+    stack_name: Optional[str] = None
 ) -> str:
     """Format a skill-like recommendation card for squad subagent invocation."""
     skills_fmt = ", ".join([f"`{s}`" for s in skills]) if skills else "`none`"
@@ -350,9 +415,10 @@ def format_squad_suggestion_card(
         }
         rationale = reasons.get(role, f"Specialized optimization for role '{role}'.")
 
+    stack_part = f" | Stack: `{stack_name}`" if stack_name else ""
     lines = [
         f"> 💡 **Squad Recommendation Card**",
-        f"> - **Recommended Agent**: `{target_agent}` (Role: `{role}` | Complexity: `{complexity_score}/5`)",
+        f"> - **Recommended Agent**: `{target_agent}` (Role: `{role}` | Complexity: `{complexity_score}/5`{stack_part})",
         f"> - **Active Phase**: `{phase}` ({platform.upper()}) | **Target Skills**: {skills_fmt}",
         f"> - **Rationale**: {rationale}",
         f"> - **Execution Options**:",

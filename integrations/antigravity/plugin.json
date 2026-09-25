@@ -1,27 +1,6 @@
 {
   "name": "specialized-squad",
   "description": "Specialized Vertical Subagent Squad for Antigravity: Dev, QA, Design, Debug, BA, Marketing",
-  "version": "1.2.0",
-  "agents": [
-    "agents/ba-agent.md",
-    "agents/debug-agent.md",
-    "agents/design-agent.md",
-    "agents/dev-agent.md",
-    "agents/marketing-agent.md",
-    "agents/qa-agent.md"
-  ],
-  "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -m squad_engine.cli sync-workspace",
-            "timeout": 15,
-            "statusMessage": "Synchronizing specialized squad agents..."
-          }
-        ]
-      }
-    ]
-  }
+  "version": "1.2.1"
 }
+

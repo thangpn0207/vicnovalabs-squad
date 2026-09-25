@@ -25,8 +25,8 @@ class TestTypedHandoffs(unittest.TestCase):
         self.assertTrue(res["valid"])
         self.assertEqual(len(res["errors"]), 0)
 
-    def test_invalid_manifest_coverage_report(self):
-        # Missing coverage_report
+    def test_dev_test_contract_coverage_optional(self):
+        # Manifest without coverage_report is valid (coverage not required)
         payload = {
             "module": "Auth",
             "modified_files": ["src/auth.py"],
@@ -34,10 +34,9 @@ class TestTypedHandoffs(unittest.TestCase):
             "verification_command": "pytest tests/test_auth.py"
         }
         res = validate_handoff_payload("manifest", payload)
-        self.assertFalse(res["valid"])
-        self.assertTrue(any("coverage_report" in e for e in res["errors"]))
+        self.assertTrue(res["valid"])
 
-        # Low coverage
+        # Low coverage percentage does not block handoff (Dev Test Contract)
         payload_low = {
             "module": "Auth",
             "modified_files": ["src/auth.py"],
@@ -45,14 +44,11 @@ class TestTypedHandoffs(unittest.TestCase):
             "verification_command": "pytest tests/test_auth.py",
             "coverage_report": {
                 "line_coverage_pct": 70.0,
-                "branch_coverage_pct": 60.0,
-                "tool": "pytest-cov",
-                "meets_threshold": True
+                "branch_coverage_pct": 60.0
             }
         }
         res_low = validate_handoff_payload("manifest", payload_low)
-        self.assertFalse(res_low["valid"])
-        self.assertTrue(any("Line coverage" in e for e in res_low["errors"]))
+        self.assertTrue(res_low["valid"])
 
     def test_invalid_manifest_missing_fields(self):
         payload = {"module": "Auth"}
@@ -169,7 +165,7 @@ class TestTypedHandoffs(unittest.TestCase):
             "critique_id": "CRIT-001",
             "target_artifact": "PRD-Auth",
             "target_domain": "docs",
-            "skeptic_agent": "debug-agent",
+            "skeptic_agent": "squad-debug",
             "refuted_assumptions": ["Assumed offline sync is instantaneous"],
             "blindspots_and_edge_cases": ["Race condition on dual refresh"],
             "risk_level": "Medium",
@@ -197,7 +193,7 @@ class TestTypedHandoffs(unittest.TestCase):
             "critique_id": "CRIT-001",
             "target_artifact": "PRD-Auth",
             "target_domain": "invalid_domain",
-            "skeptic_agent": "debug-agent",
+            "skeptic_agent": "squad-debug",
             "verdict": "MAYBE",
             "action_items": ["Fix it"]
         }
@@ -247,6 +243,68 @@ class TestTypedHandoffs(unittest.TestCase):
         res = validate_handoff_payload("acceptance", payload)
         self.assertFalse(res["valid"])
         self.assertTrue(any("Field 'screenshot_evidence' expected type string" in e for e in res["errors"]))
+
+    def test_invalid_acceptance_short_live_evidence(self):
+        payload = {
+            "module": "Checkout",
+            "target_platforms": ["web:playwright"],
+            "fresh_test_identifier": "order_test_9999",
+            "interactive_journey": ["page.click('#submit')"],
+            "state_mutation_delta": {"pre": "unpaid", "post": "paid"},
+            "live_evidence": "short",  # Too short to be real evidence
+            "anti_deception_checks": {
+                "no_passive_visual_only": True,
+                "all_target_devices_interacted": True,
+                "stale_data_ruled_out": True,
+                "silent_errors_ruled_out": True
+            },
+            "verdict": "PASS"
+        }
+        res = validate_handoff_payload("acceptance", payload)
+        self.assertFalse(res["valid"])
+        self.assertTrue(any("Empirical Evidence Violation" in e for e in res["errors"]))
+
+    def test_simulation_fraud_rejection(self):
+        payload = {
+            "module": "P2P Media",
+            "target_platforms": ["android:emulator-5554"],
+            "fresh_test_identifier": "test_p2p_fraud_001",
+            "interactive_journey": [
+                {"device": "emulator-5554", "action": "p2p wire format simulation in-memory chunking", "observed_delta": "sha256 matched in ram"}
+            ],
+            "state_mutation_delta": {"pre": "empty", "post": "synced"},
+            "live_evidence": "console log 200 OK verified in logcat",
+            "anti_deception_checks": {
+                "no_passive_visual_only": True,
+                "all_target_devices_interacted": True,
+                "stale_data_ruled_out": True,
+                "silent_errors_ruled_out": True
+            },
+            "verdict": "PASS"
+        }
+        res = validate_handoff_payload("acceptance", payload)
+        self.assertFalse(res["valid"])
+        self.assertTrue(any("Simulation Fraud Violation" in e for e in res["errors"]))
+
+    def test_agent_registry_dynamic_naming(self):
+        from squad_engine.agents_registry import get_agent_definition
+        dev_def = get_agent_definition("squad-dev")
+        self.assertEqual(dev_def["name"], "squad-dev")
+        self.assertTrue(dev_def["enable_write_tools"])
+        self.assertTrue(dev_def["enable_mcp_tools"])
+
+        qa_def = get_agent_definition("squad-qa")
+        self.assertEqual(qa_def["name"], "squad-qa")
+        self.assertTrue(qa_def["enable_write_tools"])
+
+        # Role aliases also resolve to squad-<role>
+        qa_short = get_agent_definition("qa")
+        self.assertEqual(qa_short["name"], "squad-qa")
+        self.assertTrue(qa_short["enable_write_tools"])
+
+        dev_short = get_agent_definition("dev")
+        self.assertEqual(dev_short["name"], "squad-dev")
+        self.assertTrue(dev_short["enable_write_tools"])
 
     def test_qa_screenshot_config(self):
         import tempfile

@@ -42,20 +42,52 @@ def slugify(text: str) -> str:
     return re.sub(r"[-\s]+", "_", cleaned)[:30]
 
 
-def is_single_task(prompt: str) -> bool:
-    """Detects if prompt asks for an isolated single-step task exempt from pipeline chaining."""
+def is_single_task(prompt: str, workspace: Optional[str] = None) -> bool:
+    """Detects if prompt asks for an isolated single-step task exempt from pipeline chaining.
+    Uses Tier A scope evaluation and composite exclusion instead of blocking common action verbs.
+    """
     if not prompt:
         return False
     text = prompt.lower()
+
+    # Option selections are handled by dedicated gate
+    from .triage import OPTION_SELECTION_PATTERN
+    if OPTION_SELECTION_PATTERN.search(text):
+        return False
+
+    # Explicit multi-agent / composite commands are definitely not single-tasks
+    if COMPOSITE_TASK_PATTERN.search(text):
+        return False
+
     single_indicators = [
         r"\b(chỉ|chỉ làm|chỉ cần|duy nhất|one-off|single task)\b",
         r"\b(giải thích|tại sao|nghĩa là gì|explain|what is|how does)\b",
-        r"\b(sửa 1 lỗi|sửa typo|sửa 1 chữ|1 dòng|rename)\b",
+        r"\b(sửa 1 lỗi|sửa typo|sửa 1 chữ|1 dòng|rename|comment|chỉnh 1 màu|sửa 1 nút)\b",
         r"\b(không cần test|không cần qa|bỏ qua test)\b"
     ]
     for pattern in single_indicators:
         if re.search(pattern, text):
             return True
+
+    # Call Tier B (JEV Intent Classification)
+    try:
+        from .semantic_evaluator import classify_intent_tier_b
+        tier_b = classify_intent_tier_b(prompt=prompt, workspace=workspace)
+        if tier_b.get("is_single_task"):
+            return True
+    except Exception:
+        pass
+
+    # Check Tier A Scope Evaluator if explicit workspace diff exists
+    if workspace:
+        try:
+            from .scope_evaluator import evaluate_scope_risk
+            scope = evaluate_scope_risk(workspace_dir=workspace, prompt=prompt)
+            if scope.modified_files:
+                return scope.is_fast_path
+        except Exception:
+            pass
+
     return False
 
 
@@ -70,7 +102,21 @@ def is_composite_or_large_task(prompt: str) -> bool:
         return False
     from .semantic_evaluator import evaluate_task_semantics
     assessment = evaluate_task_semantics(prompt)
-    return assessment.get("execution_topology") == "scoped_fanout"
+    topology = assessment.get("execution_topology")
+    if topology == "scoped_fanout":
+        # Guard: Fan-out should only happen if there is an explicit fan-out indicator,
+        # multi-platform testing, or an actual multi-item checklist in the prompt.
+        # Do not fan-out for a single domain feature request (e.g. testing photo upload/download).
+        text = prompt.lower()
+        has_explicit_fanout = bool(re.search(
+            r"\b(chia\s*việc|song\s*song|nhiều\s*dev|nhiều\s*qa|multi\s*agent|fan[\s-]out|map[\s-]reduce|"
+            r"toàn\s*bộ|tất\s*cả|toàn\s*app|batch\s*test|parallel)\b",
+            text
+        ))
+        has_multiplatform = (bool(re.search(r"\b(android|apk)\b", text)) and bool(re.search(r"\b(ios|iphone|simulator)\b", text)))
+        has_checklist = len([l for l in prompt.splitlines() if re.match(r"^\s*(?:[-*•]|\d+[.)])\s+", l.strip())]) >= 3
+        return bool(has_explicit_fanout or has_multiplatform or has_checklist)
+    return False
 
 
 
@@ -83,7 +129,7 @@ def decompose_large_task(prompt: str, platform: str = "mobile", workspace: Optio
     role = triage_res.get("role", "dev")
     if role not in ["dev", "qa"]:
         role = "dev"
-    target_agent = f"{role}-agent"
+    target_agent = f"squad-{role}"
 
     matched_modules = []
     partition_strategy = "DISJOINT_MODULE_PARTITION"
@@ -267,14 +313,14 @@ def init_scoped_task_plan(
             s_id = item.get("id", f"ST-{idx:02d}")
             s_title = item.get("title", f"Subtask {idx}")
             s_part = item.get("partition", f"Partition-{idx}")
-            s_agent = item.get("target_agent", "qa-agent")
+            s_agent = item.get("target_agent", "squad-qa")
             s_status = item.get("status", "[ ] PENDING")
             s_notes = item.get("notes", "Initialized")
         else:
             s_id = f"ST-{idx:02d}"
             s_title = str(item)
             s_part = f"Partition-{idx}"
-            s_agent = "qa-agent"
+            s_agent = "squad-qa"
             s_status = "[ ] PENDING"
             s_notes = "Initialized"
         norm_subtasks.append({
@@ -321,6 +367,11 @@ def init_scoped_task_plan(
 """
     plan_path.write_text(content, encoding="utf-8")
 
+    # Auto-prune older plans to prevent cache bloat (retain 15 most recent)
+    try:
+        prune_scoped_plans(max_keep=15, workspace=workspace)
+    except Exception:
+        pass
 
     return {
         "status": "success",
@@ -526,5 +577,38 @@ def reconcile_scoped_task_plan(
         "reconciled_subtasks": synced_items,
         "all_subtasks_done": parsed["is_completed"],
         "progress_file": str(prog_path)
+    }
+
+
+def prune_scoped_plans(max_keep: int = 10, workspace: Optional[str] = None) -> Dict[str, Any]:
+    """Prunes obsolete scoped task plans, keeping only the most recent `max_keep` files."""
+    plans_dir = get_scoped_plans_dir(workspace)
+    plans = sorted(plans_dir.glob("TASK_PLAN_*.md"), key=lambda f: f.stat().st_mtime, reverse=True)
+
+    if len(plans) <= max_keep:
+        return {
+            "status": "success",
+            "total_plans": len(plans),
+            "pruned_count": 0,
+            "pruned_files": [],
+            "retained_count": len(plans)
+        }
+
+    to_delete = plans[max_keep:]
+    pruned_files = []
+    for p in to_delete:
+        try:
+            name = p.name
+            p.unlink()
+            pruned_files.append(name)
+        except Exception:
+            pass
+
+    return {
+        "status": "success",
+        "total_plans": len(plans),
+        "pruned_count": len(pruned_files),
+        "pruned_files": pruned_files,
+        "retained_count": len(plans) - len(pruned_files)
     }
 

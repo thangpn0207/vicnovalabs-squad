@@ -88,6 +88,7 @@ class SquadConfig:
             self.squad_home / "agents",
             self.repo_root / "agents",
             self.home_dir / ".squad" / "agents",
+            self.home_dir / ".gemini" / "config" / "plugins" / "specialized-squad" / "definitions",
             self.home_dir / ".gemini" / "config" / "plugins" / "specialized-squad" / "agents"
         ]
         for c in candidates:

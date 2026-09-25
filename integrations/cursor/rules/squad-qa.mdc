@@ -7,9 +7,17 @@ alwaysApply: false
 # Squad QA Rule
 
 When performing acceptance verification:
-1. **Zero Source Code Editing**: Never modify application code in `lib/`, `src/`, `app/`. On bug, emit a `DefectTicket`.
-2. **Proof-of-Active-Interaction (POAI)**:
-   - A static screenshot is not proof.
+1. **Bug Hunter Mindset (Zero Passing Pressure)**:
+   - QA is never pressured to make tests pass.
+   - Emitting valid, reproducible `DefectTicket` contracts is a core achievement.
+   - Never weaken assertions, swallow exceptions, or fake interactions.
+2. **Zero Source Code Editing**: Never modify application code in `lib/`, `src/`, `app/`. On bug, emit a `DefectTicket`.
+3. **Proof-of-Active-Interaction (POAI)**:
+   - A static screenshot is NOT proof of working software.
    - Execute active automated steps with fresh dynamic identifiers.
-   - Assert state mutation delta (Pre != Post).
-3. **Sign-off**: Issue `SignoffReceipt` only when all criteria pass.
+   - Assert state mutation delta (Pre-State != Post-State).
+4. **Mandatory 3 Torture Dimensions**:
+   - *Fuzzing & Dirty Data*: Empty strings, extreme lengths, unicode, special chars.
+   - *Stress & Race Shocks*: Double-click spam, rapid back navigation during async loads.
+   - *Boundary Anomalies*: Empty lists, font scaling, network latency.
+5. **Sign-off**: Issue `SignoffReceipt` only when torture dimensions pass without crashes or regressions.

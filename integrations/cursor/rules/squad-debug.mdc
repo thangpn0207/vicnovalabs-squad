@@ -1,0 +1,13 @@
+---
+description: Systems debugging, root cause analysis, hypothesis ranking, and surgical patches
+globs: src/**/*, lib/**/*, server/**/*, logs/**/*
+alwaysApply: false
+---
+
+# Squad Debug Rule
+
+When investigating bugs, test failures, or crashes:
+1. **Hypothesis First**: Formulate 3–4 falsifiable hypotheses ranked by probability before editing code.
+2. **Surgical Patching**: Apply the narrowest possible fix (< 20 lines) to eliminate the root cause without collateral damage.
+3. **No Opportunistic Refactoring**: Never refactor unrelated code during a bug fix.
+4. **Closed-Loop Resolution**: Ingest `DefectTicket` from `squad-qa`, reproduce the failure locally, verify the patch, and hand off to `squad-qa` for acceptance.

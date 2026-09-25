@@ -5,9 +5,28 @@ Parses, calculates statistics, and initializes PROJECT_PROGRESS.md.
 """
 
 import re
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+
+
+def _write_with_lock(path: Path, content: str, encoding: str = "utf-8") -> None:
+    """
+    Write content to a file with advisory file locking to prevent concurrent corruption.
+    Uses fcntl on Unix/macOS. Falls back to direct write on Windows.
+    """
+    try:
+        import fcntl
+        with open(path, "w", encoding=encoding) as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            try:
+                f.write(content)
+            finally:
+                fcntl.flock(f, fcntl.LOCK_UN)
+    except ImportError:
+        # Windows fallback — no fcntl, write directly
+        path.write_text(content, encoding=encoding)
 
 
 def parse_project_progress(progress_file_path: Optional[str] = None) -> Dict[str, Any]:
@@ -128,7 +147,7 @@ def init_project_progress(project_name: str, tasks: List[str], target_file: Opti
     template = f"""# Project Progress & Feature Completion Tracker: {project_name}
 
 **Last Updated:** {now_str}
-**Updated By:** `dev-agent`
+**Updated By:** `squad-dev`
 **Overall Progress:** [--------------------] **0%** (0/{len(tasks)} modules completed)
 
 ---
@@ -142,7 +161,7 @@ def init_project_progress(project_name: str, tasks: List[str], target_file: Opti
 
 ## 2. Feature Progress Matrix
 
-| Module / Function | Scope / Description | Status | Notes from Dev Agent | Testing |
+| Module / Function | Scope / Description | Status | Notes from Squad Dev | Testing |
 | :--- | :--- | :---: | :--- | :---: |
 {table_content}
 
@@ -156,9 +175,10 @@ def init_project_progress(project_name: str, tasks: List[str], target_file: Opti
 ## 4. Next Recommended Action for Main Agent
 1. **Next Task:** Execute first module: `{first_task}`.
 2. **Target Files:** Define module structure in `src/`.
-3. **Assigned Agent:** `dev-agent` (Model: inherit).
+3. **Assigned Agent:** `squad-dev` (Model: inherit).
 """
-    target.write_text(template, encoding="utf-8")
+    _write_with_lock(target, template)  # P3-C: concurrent-safe write
+
 
     return {
         "status": "INITIALIZED",

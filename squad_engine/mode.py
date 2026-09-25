@@ -406,6 +406,25 @@ def handle_squad_mode_prompt(
             "auto_chain": False
         }
 
+    # If argument is fix-agent-setting command (Self-Healing Gateway)
+    if raw_arg in ["fix-agent-setting", "fix-agents", "fix-setting", "repair-agent-setting", "fix"]:
+        from .fix_agent_setting import fix_agent_setting, format_fix_report_markdown
+        res = fix_agent_setting(workspace=workspace)
+        card_md = format_fix_report_markdown(res)
+        return {
+            "status": "success",
+            "execution_mode": "inline",
+            "decision": "FIX_AGENT_SETTING",
+            "action": "fix",
+            "details": res,
+            "dispatch_card_markdown": card_md,
+            "auto_chain": False
+        }
+
+    # If argument is a squad role or full pipeline command, leave to gate.py
+    if raw_arg in ["dev", "qa", "design", "debug", "ba", "marketing", "full"]:
+        return None
+
     # If argument is one of the valid modes:
     if raw_arg in VALID_MODES:
         set_res = set_dispatch_mode(raw_arg, workspace, session_id)

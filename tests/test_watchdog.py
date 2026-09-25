@@ -75,6 +75,36 @@ class TestSubagentWatchdog(unittest.TestCase):
         kill_list = reap_zombie_subagents(subagents)
         self.assertEqual(sorted(kill_list), ["sub-bad-1", "sub-bad-2"])
 
+    def test_audit_transcript_excessive_tool_calls(self):
+        from squad_engine.watchdog import audit_transcript_content
+        lines = [
+            {"tool_calls": [{"name": "run_command", "args": {"CommandLine": f"echo {i}"}}]}
+            for i in range(30)
+        ]
+        res = audit_transcript_content(lines)
+        self.assertTrue(res["is_looping"])
+        self.assertTrue(any(iss["error_type"] == "EXCESSIVE_TOOL_CALL_LOOP" for iss in res["issues"]))
+
+    def test_audit_transcript_screenshot_loop(self):
+        from squad_engine.watchdog import audit_transcript_content
+        lines = [
+            {"tool_calls": [{"name": "run_command", "args": {"CommandLine": "adb exec-out screencap -p > s.png"}}]}
+            for _ in range(5)
+        ]
+        res = audit_transcript_content(lines)
+        self.assertTrue(res["is_looping"])
+        self.assertTrue(any(iss["error_type"] == "SCREENSHOT_LOOP_VIOLATION" for iss in res["issues"]))
+
+    def test_audit_transcript_identical_command_loop(self):
+        from squad_engine.watchdog import audit_transcript_content
+        lines = [
+            {"tool_calls": [{"name": "run_command", "args": {"CommandLine": "adb shell input tap 100 200"}}]}
+            for _ in range(4)
+        ]
+        res = audit_transcript_content(lines)
+        self.assertTrue(res["is_looping"])
+        self.assertTrue(any(iss["error_type"] == "IDENTICAL_COMMAND_LOOP" for iss in res["issues"]))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -26,8 +26,13 @@ build/
 # Local Squad runtime artifacts & backups
 *.bak
 *.bak_*
+.squad/
 .squad_cache/
 .agents/
+.worktrees/
 scratch/
 tmp/
 *.log
+squad_runner_*.py
+test/squad_runner_*.py
+

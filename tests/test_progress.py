@@ -55,6 +55,44 @@ class TestProjectProgress(unittest.TestCase):
         self.assertEqual(res["progress_percentage"], 33.3)
         self.assertIn("Playwright", res["next_recommended_action"])
 
+    def test_orchestrator_defect_loopback_escalation(self):
+        from squad_engine.orchestrator import SquadOrchestrator
+        orch = SquadOrchestrator(workspace_path=str(self.tmp_path))
+        test_file = self.tmp_path / "PROJECT_PROGRESS.md"
+        test_file.write_text("- [-] READY_FOR_QA `Auth`\n", encoding="utf-8")
+
+        defect_payload = {
+            "ticket_id": "DEF-001",
+            "module": "Auth",
+            "severity": "Blocker",
+            "repro_steps": ["Click login"],
+            "target_selector_or_screen": "#btn",
+            "actual_behavior": "Fails",
+            "expected_behavior": "Passes",
+            "logs_or_stacktrace": "NullPointer",
+            "visual_diff_score": 0.0
+        }
+
+        # Attempt 1: Returns DISPATCH_DEV_BUGFIX
+        res1 = orch.handle_defect(defect_payload)
+        self.assertTrue(res1["success"])
+        self.assertEqual(res1["action"], "DISPATCH_DEV_BUGFIX")
+        self.assertEqual(res1["attempt"], 1)
+
+        # Attempt 2: Returns DISPATCH_DEV_BUGFIX
+        res2 = orch.handle_defect(defect_payload)
+        self.assertTrue(res2["success"])
+        self.assertEqual(res2["action"], "DISPATCH_DEV_BUGFIX")
+        self.assertEqual(res2["attempt"], 2)
+
+        # Attempt 3: Exceeds MAX_DEFECT_LOOPBACKS (2) -> ESCALATE_TO_HUMAN
+        res3 = orch.handle_defect(defect_payload)
+        self.assertFalse(res3["success"])
+        self.assertEqual(res3["action"], "ESCALATE_TO_HUMAN")
+        self.assertTrue(res3["stop_required"])
+        self.assertIn("Escalating to human user", res3["message"])
+
 
 if __name__ == "__main__":
     unittest.main()
+

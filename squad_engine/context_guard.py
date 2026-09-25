@@ -84,7 +84,7 @@ def _heuristic_rank_hypotheses(error_trace: str, hypotheses: List[str]) -> Dict[
 
 
 def rank_hypotheses(error_trace: str, hypotheses: List[str]) -> Dict[str, Any]:
-    """Rank debug hypotheses probabilistically for debug-agent."""
+    """Rank debug hypotheses probabilistically for squad-debug."""
     client = get_typesafe_client()
     if not client:
         return _heuristic_rank_hypotheses(error_trace, hypotheses)

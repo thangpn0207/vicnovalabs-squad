@@ -27,12 +27,19 @@ class TestUnifiedGate(unittest.TestCase):
         self.assertIn("Squad Scoped Fan-Out Dispatch Card", res["dispatch_card_markdown"])
 
     def test_adversarial_review_gate(self):
-        res = squad_gate("viết tài liệu đặc tả PRD và kiến trúc mới cho hệ thống auth")
-        self.assertEqual(res["execution_mode"], "subagent")
-        self.assertEqual(res["decision"], "DISPATCH_ADVERSARIAL_REVIEW")
-        self.assertTrue(res.get("adversarial_review_active"))
-        self.assertEqual(res.get("skeptic_agent"), "debug-agent")
-        self.assertEqual(res.get("schema_contract"), "critique")
+        # In auto mode, sensitive changes dispatch adversarial review subagent
+        res_auto = squad_gate("viết tài liệu đặc tả PRD và kiến trúc mới cho hệ thống auth", mode="auto")
+        self.assertEqual(res_auto["execution_mode"], "subagent")
+        self.assertEqual(res_auto["decision"], "DISPATCH_ADVERSARIAL_REVIEW")
+        self.assertTrue(res_auto.get("adversarial_review_active"))
+        self.assertEqual(res_auto.get("skeptic_agent"), "squad-debug")
+        self.assertEqual(res_auto.get("schema_contract"), "critique")
+
+        # In default (suggest) mode, sensitive changes proceed inline with soft suggestion
+        res_suggest = squad_gate("viết tài liệu đặc tả PRD và kiến trúc mới cho hệ thống auth", mode="suggest")
+        self.assertEqual(res_suggest["execution_mode"], "inline")
+        self.assertEqual(res_suggest["decision"], "INLINE_WITH_SOFT_SUGGESTION")
+        self.assertIn("💡 Notice: this change touches Auth/Security", res_suggest.get("notice", ""))
 
     def test_semantic_triage_dev_writing_test_runner_for_qa(self):
         """Disambiguate 'refactor test runner cho qa' -> role must be DEV (not QA)."""
@@ -47,7 +54,7 @@ class TestUnifiedGate(unittest.TestCase):
 
         gate_res = squad_gate("refactor test runner cho qa")
         self.assertEqual(gate_res["role"], "dev")
-        self.assertEqual(gate_res["target_agent"], "dev-agent")
+        self.assertEqual(gate_res["target_agent"], "squad-dev")
 
     def test_semantic_triage_blackbox_qa(self):
         res = triage_intent("nghiệm thu tính năng login bằng playwright")
@@ -55,7 +62,7 @@ class TestUnifiedGate(unittest.TestCase):
 
         gate_res = squad_gate("chạy bộ test e2e nghiệm thu màn hình checkout")
         self.assertEqual(gate_res["role"], "qa")
-        self.assertEqual(gate_res["target_agent"], "qa-agent")
+        self.assertEqual(gate_res["target_agent"], "squad-qa")
 
     def test_coverage_gate_in_manifest_success(self):
         valid_manifest = {
@@ -75,7 +82,7 @@ class TestUnifiedGate(unittest.TestCase):
         self.assertEqual(len(res["errors"]), 0)
 
     def test_coverage_gate_in_manifest_failures(self):
-        # Missing coverage_report
+        # Under Dev Test Contract: coverage_report is optional and non-blocking
         missing_cov = {
             "module": "Auth",
             "modified_files": ["src/auth.py"],
@@ -83,42 +90,31 @@ class TestUnifiedGate(unittest.TestCase):
             "verification_command": "pytest tests/test_auth.py"
         }
         res_missing = validate_handoff_payload("manifest", missing_cov)
-        self.assertFalse(res_missing["valid"])
-        self.assertTrue(any("Missing required field: 'coverage_report'" in e for e in res_missing["errors"]))
+        self.assertTrue(res_missing["valid"])
 
-        # Line coverage below threshold (< 85%)
-        low_line = {
+        # Low line/branch coverage does not block handoff (treated as metadata)
+        low_cov = {
             "module": "Auth",
             "modified_files": ["src/auth.py"],
             "self_test_result": "PASSED",
             "verification_command": "pytest",
             "coverage_report": {
                 "line_coverage_pct": 74.0,
-                "branch_coverage_pct": 85.0,
-                "tool": "pytest-cov",
-                "meets_threshold": True
-            }
-        }
-        res_low_line = validate_handoff_payload("manifest", low_line)
-        self.assertFalse(res_low_line["valid"])
-        self.assertTrue(any("minimum threshold of 85.0%" in e for e in res_low_line["errors"]))
-
-        # Branch coverage below threshold (< 80%)
-        low_branch = {
-            "module": "Auth",
-            "modified_files": ["src/auth.py"],
-            "self_test_result": "PASSED",
-            "verification_command": "pytest",
-            "coverage_report": {
-                "line_coverage_pct": 90.0,
                 "branch_coverage_pct": 72.0,
-                "tool": "pytest-cov",
-                "meets_threshold": True
+                "tool": "pytest-cov"
             }
         }
-        res_low_branch = validate_handoff_payload("manifest", low_branch)
-        self.assertFalse(res_low_branch["valid"])
-        self.assertTrue(any("minimum threshold of 80.0%" in e for e in res_low_branch["errors"]))
+        res_low = validate_handoff_payload("manifest", low_cov)
+        self.assertTrue(res_low["valid"])
+
+        # Missing required core fields (e.g. self_test_result) MUST fail
+        missing_required = {
+            "module": "Auth",
+            "modified_files": ["src/auth.py"]
+        }
+        res_err = validate_handoff_payload("manifest", missing_required)
+        self.assertFalse(res_err["valid"])
+        self.assertTrue(any("Missing required field" in e for e in res_err["errors"]))
 
     def test_mobile_qa_checklist_scoped_fanout(self):
         """Verifies multi-screen mobile QA acceptance checklist triggers Scoped Fan-Out across QA workers."""
@@ -134,7 +130,7 @@ class TestUnifiedGate(unittest.TestCase):
         self.assertEqual(res["execution_mode"], "fanout")
         self.assertEqual(res["decision"], "SCOPED_FANOUT")
         self.assertEqual(res["role"], "qa")
-        self.assertEqual(res["target_agent"], "qa-agent")
+        self.assertEqual(res["target_agent"], "squad-qa")
         self.assertIn("fanout_invocations", res)
         self.assertGreaterEqual(len(res["fanout_invocations"]), 2)
         self.assertIn("Squad Scoped Fan-Out Dispatch Card", res["dispatch_card_markdown"])

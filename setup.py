@@ -3,10 +3,14 @@ from setuptools import setup, find_packages
 
 setup(
     name="VicnovaLabs-squad",
-    version="1.0.0",
+    version="2.3.0",
     description="Multi-IDE Autonomous Specialized Squad Framework",
     author="VicnovaLabs Team",
     packages=find_packages(),
+    package_data={
+        "squad_engine": ["web/*", "test_primitives.js"],
+    },
+    include_package_data=True,
     entry_points={
         "console_scripts": [
             "squad=squad_engine.cli:main",

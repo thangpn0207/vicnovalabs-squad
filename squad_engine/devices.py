@@ -145,3 +145,102 @@ def generate_hardware_checkpoint(reason: str, audit_data: Dict[str, Any]) -> Dic
         "prompt_message": msg
     }
 
+
+def run_adb_preflight(serial: str, package_id: str = "", min_storage_mb: int = 500) -> Dict[str, Any]:
+    """
+    Run ADB preflight checks before starting acceptance testing.
+
+    Verifies:
+    1. Device is responsive (adb shell echo __ok__)
+    2. App package is installed (if package_id provided)
+    3. /data partition has at least min_storage_mb MB free
+    4. Screen dimensions are readable (wm size)
+
+    Returns:
+        Dict with 'ready' bool, per-check results, and list of 'errors'.
+    """
+    checks: Dict[str, Any] = {}
+    errors: List[str] = []
+
+    # 0. Check device state (online, offline, unauthorized)
+    try:
+        state_res = subprocess.run(
+            ["adb", "-s", serial, "get-state"],
+            capture_output=True, text=True, timeout=5
+        )
+        state_out = state_res.stdout.strip().lower()
+        if "offline" in state_out:
+            errors.append(f"ADB Error: Device {serial} is offline.")
+            return {"serial": serial, "ready": False, "checks": {"device_state": "offline"}, "errors": errors}
+        elif "unauthorized" in state_out:
+            errors.append(f"ADB Error: Device {serial} is unauthorized. Confirm RSA key fingerprint on device.")
+            return {"serial": serial, "ready": False, "checks": {"device_state": "unauthorized"}, "errors": errors}
+        elif state_res.returncode != 0:
+            errors.append(f"ADB Error: Device {serial} not found or inaccessible: {state_res.stderr.strip()}")
+            return {"serial": serial, "ready": False, "checks": {"device_state": "inaccessible"}, "errors": errors}
+        checks["device_state"] = state_out or "device"
+    except Exception as e:
+        errors.append(f"ADB Execution Error on {serial}: {e}")
+        return {"serial": serial, "ready": False, "checks": {"device_state": "error"}, "errors": errors}
+
+    def _adb_shell(cmd: str):
+        try:
+            res = subprocess.run(
+                ["adb", "-s", serial, "shell"] + cmd.split(),
+                capture_output=True, text=True, timeout=10
+            )
+            return res.stdout.strip(), res.returncode
+        except Exception:
+            return "", 1
+
+    # 1. Device responsiveness
+    out, rc = _adb_shell("echo __ok__")
+    checks["device_responsive"] = rc == 0 and "__ok__" in out
+    if not checks["device_responsive"]:
+        errors.append(f"Device {serial} not responding to adb shell.")
+
+
+    # 2. App installation check
+    if package_id:
+        out, rc = _adb_shell(f"pm list packages")
+        installed = package_id in out
+        checks["app_installed"] = installed
+        checks["package_id"] = package_id
+        if not installed:
+            errors.append(f"Package '{package_id}' not found on device {serial}. Install APK first.")
+    else:
+        checks["app_installed"] = None  # Not checked — no package_id given
+
+    # 3. Storage space check
+    out, rc = _adb_shell("df /data")
+    checks["storage_checked"] = rc == 0
+    checks["storage_ok"] = False
+    if rc == 0 and out:
+        for line in out.strip().splitlines()[1:]:
+            parts = line.split()
+            if len(parts) >= 4:
+                try:
+                    avail_kb = int(parts[3])
+                    avail_mb = avail_kb // 1024
+                    checks["storage_available_mb"] = avail_mb
+                    checks["storage_ok"] = avail_mb >= min_storage_mb
+                    if not checks["storage_ok"]:
+                        errors.append(
+                            f"Insufficient storage on {serial}: {avail_mb}MB available, "
+                            f"{min_storage_mb}MB required."
+                        )
+                    break
+                except (ValueError, IndexError):
+                    pass
+
+    # 4. Screen dimensions
+    out, rc = _adb_shell("wm size")
+    checks["screen_size_readable"] = rc == 0 and "size" in out.lower()
+    checks["screen_size"] = out.replace("Physical size:", "").strip() if checks["screen_size_readable"] else None
+
+    return {
+        "serial": serial,
+        "ready": len(errors) == 0,
+        "checks": checks,
+        "errors": errors
+    }

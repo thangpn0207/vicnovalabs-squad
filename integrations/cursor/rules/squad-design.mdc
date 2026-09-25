@@ -1,0 +1,13 @@
+---
+description: Principal UI/UX design, Apple HIG, 3 design options, tactile styling, and fidelity audit
+globs: mockups/**/*, designs/**/*, *.html, *.css
+alwaysApply: false
+---
+
+# Squad Design Rule
+
+When designing user interfaces or generating prototypes:
+1. **Multi-Option Prototyping**: Deliver 2–3 distinct aesthetic options (Apple HIG Fluid, Tactile Minimalist, Neo-Brutalist) as standalone HTML prototypes.
+2. **Stop Gate**: Stop immediately after presenting options and await explicit user selection before implementation.
+3. **Semantic Annotations**: Every interactive element must specify a deterministic semantic ID (`#btn_submit`, `input_search`) for `squad-dev` and `squad-qa`.
+4. **UI Fidelity Audit**: Verify that implementation matches approved mockups with fidelity score >= 0.85 via `squad ui-audit`.

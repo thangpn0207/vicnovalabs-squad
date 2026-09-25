@@ -1,0 +1,13 @@
+---
+description: Growth marketing, CRO optimization, value propositions, and anti-slop copy
+globs: copy/**/*, marketing/**/*, content/**/*, landing/**/*
+alwaysApply: false
+---
+
+# Squad Marketing Rule
+
+When crafting product messaging, marketing loops, or landing pages:
+1. **Zero AI Slop**: Eliminate filler phrases, clichés, throat-clearing fluff, and predictable AI boilerplate.
+2. **Benefit-Driven Value Proposition**: Communicate concrete user outcomes and pain points crisply.
+3. **CRO Architecture**: Structure hero sections, social proof, objections handling, and CTAs for maximum conversion.
+4. **SEO & Semantics**: Ensure proper heading hierarchies, descriptive title tags, and optimized metadata.

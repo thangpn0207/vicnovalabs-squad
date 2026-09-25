@@ -3,7 +3,7 @@ name: squad-design
 description: Principal UI/UX designer standard: Apple HIG, multi-option HTML prototypes, tactile typography, and UI fidelity audits
 role: Designer
 phase: prototyping
-version: 1.0.0
+version: 2.0.0
 ---
 
 # Squad Design — Principal UI/UX Standard

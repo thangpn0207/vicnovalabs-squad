@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VicnovaLabs Squad — Virtual Animated Office & Telemetry Mission Control</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body class="dark-theme">
+  <!-- Top Navigation & Global Header -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="brand-logo">
+        <span class="logo-icon">🚀</span>
+        <div class="brand-text">
+          <span class="brand-name">VICNOVALABS <span class="badge-squad">SQUAD</span></span>
+          <span class="brand-subtitle">Virtual Animated Office & Real-Time Telemetry</span>
+        </div>
+      </div>
+      <div class="connection-status" id="connectionStatus">
+        <span class="status-dot pulsing"></span>
+        <span class="status-label">STREAMING LIVE</span>
+      </div>
+    </div>
+
+    <div class="header-center">
+      <div class="finops-quick-banner">
+        <div class="quick-metric">
+          <span class="metric-title">TOTAL TOKENS</span>
+          <span class="metric-val text-white" id="topTotalTokens">0</span>
+        </div>
+        <div class="metric-divider"></div>
+        <div class="quick-metric">
+          <span class="metric-title">TOTAL SPEND</span>
+          <span class="metric-val text-emerald" id="topTotalSpend">$0.0000</span>
+        </div>
+        <div class="metric-divider"></div>
+        <div class="quick-metric">
+          <span class="metric-title">BURN RATE</span>
+          <span class="metric-val text-cyan" id="topBurnRate">0 t/s</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <div class="budget-badge" id="budgetBadge">
+        <span class="budget-icon">🛡️</span>
+        <span class="budget-text" id="budgetText">Budget OK</span>
+      </div>
+      <button class="btn-emergency-stop" id="btnEmergencyStop" title="Emergency Stop All Agents">
+        <span>🛑</span> EMERGENCY STOP
+      </button>
+    </div>
+  </header>
+
+  <!-- Live Watchdog Alert Banner Container (Loop & Quota Exceeded Alerts) -->
+  <div class="alert-container" id="alertContainer"></div>
+
+  <!-- Main Multi-Zone Dashboard Container -->
+  <main class="dashboard-grid">
+    <!-- ZONE 1: 2D Animated Pixel Office Floor (Full Width Hero) -->
+    <section class="card zone-office">
+      <div class="card-header">
+        <div class="card-title">
+          <span class="icon">🏢</span>
+          <h3>Live Virtual Office Simulation</h3>
+          <span class="sub-badge" id="activeAgentsCount">0 Agents Active</span>
+        </div>
+        <div class="card-actions">
+          <span class="office-hint">💡 Click any agent or desk to inspect & navigate</span>
+          <button class="btn-pill" id="btnCoffeeBreak" onclick="triggerCoffeeBreak()">☕ Coffee Break</button>
+          <button class="btn-pill" id="btnAllToDesks" onclick="sendAllToDesks()">💼 Back to Desks</button>
+        </div>
+      </div>
+      
+      <div class="office-canvas-wrapper" id="officeContainer">
+        <!-- Interactive 2D Game Canvas -->
+        <canvas id="officeCanvas" width="960" height="440"></canvas>
+
+        <!-- Selected Agent Inspector Overlay (Popup when agent is clicked) -->
+        <div class="agent-inspector-hud" id="agentInspectorHud" style="display: none;">
+          <div class="inspector-header">
+            <span class="inspector-avatar" id="inspAvatar">👨‍💻</span>
+            <div class="inspector-info">
+              <h4 id="inspName">Dev Agent</h4>
+              <span class="inspector-status badge-active" id="inspStatus">WORKING</span>
+            </div>
+            <button class="btn-close-hud" onclick="closeInspectorHud()">✕</button>
+          </div>
+          <div class="inspector-body">
+            <div class="insp-stat">
+              <span class="insp-stat-label">Current Action:</span>
+              <span class="insp-stat-val" id="inspAction">Editing telemetry.py</span>
+            </div>
+            <div class="insp-stat">
+              <span class="insp-stat-label">Tokens Used:</span>
+              <span class="insp-stat-val text-cyan" id="inspTokens">12,450 t</span>
+            </div>
+            <div class="insp-stat">
+              <span class="insp-stat-label">Cost:</span>
+              <span class="insp-stat-val text-emerald" id="inspCost">$0.0034</span>
+            </div>
+          </div>
+          <div class="inspector-footer">
+            <button class="btn-desk-control" id="btnInspPause" onclick="togglePauseSelectedAgent()">⏸ Pause</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ZONE 2: Real-time FinOps & Token Burn -->
+    <section class="card zone-finops">
+      <div class="card-header">
+        <div class="card-title">
+          <span class="icon">⚡</span>
+          <h3>Token & FinOps Engine</h3>
+        </div>
+        <span class="sub-badge text-emerald" id="finopsCallCount">0 Calls</span>
+      </div>
+
+      <div class="finops-body">
+        <div class="finops-gauges">
+          <div class="gauge-card">
+            <span class="gauge-label">ESTIMATED SPEND</span>
+            <span class="gauge-number text-emerald" id="finopsTotalCost">$0.0000</span>
+            <span class="gauge-sub" id="finopsCostPerMin">$0.000 /min</span>
+          </div>
+          <div class="gauge-card">
+            <span class="gauge-label">BURN RATE</span>
+            <span class="gauge-number text-cyan" id="finopsBurnRate">0</span>
+            <span class="gauge-sub">Tokens / sec</span>
+          </div>
+        </div>
+
+        <div class="breakdown-section">
+          <h4>Spend Breakdown by Agent</h4>
+          <div class="breakdown-list" id="agentBreakdownList">
+            <div class="empty-state">No agent calls recorded yet</div>
+          </div>
+        </div>
+
+        <div class="breakdown-section">
+          <h4>Spend Breakdown by Model</h4>
+          <div class="breakdown-list" id="modelBreakdownList">
+            <div class="empty-state">No model usage recorded yet</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ZONE 3: Mission Control & Gate Review -->
+    <section class="card zone-control">
+      <div class="card-header">
+        <div class="card-title">
+          <span class="icon">🎮</span>
+          <h3>Two-Way Mission Control</h3>
+        </div>
+        <span class="sub-badge" id="systemStateBadge">RUNNING</span>
+      </div>
+
+      <div class="control-body">
+        <!-- Human-In-The-Loop QA Gate Panel -->
+        <div class="gate-panel">
+          <div class="gate-panel-header">
+            <span class="gate-title">Unified Squad Acceptance Gate</span>
+            <span class="gate-badge" id="gateDecisionBadge">PENDING</span>
+          </div>
+          <p class="gate-desc" id="gateDesc">Approve or reject feature handoffs directly from this dashboard.</p>
+          <div class="gate-actions">
+            <button class="btn-gate btn-approve" id="btnApproveGate" onclick="submitGateDecision('APPROVED')">
+              ✅ Approve Signoff
+            </button>
+            <button class="btn-gate btn-reject" id="btnRejectGate" onclick="submitGateDecision('REJECTED')">
+              ❌ Reject & Rework
+            </button>
+          </div>
+        </div>
+
+        <!-- Global Control Actions -->
+        <div class="system-actions">
+          <button class="btn-action" onclick="toggleGlobalPause()" id="btnGlobalPause">
+            ⏸ Pause Entire Squad
+          </button>
+          <button class="btn-action" onclick="resumeAllAgents()">
+            ▶️ Resume All
+          </button>
+        </div>
+
+        <!-- Task Plan Kanban Sync -->
+        <div class="progress-panel">
+          <div class="progress-panel-header">
+            <h4>Project Progress Tracker</h4>
+            <span class="progress-percent" id="progressPercentage">0%</span>
+          </div>
+          <div class="progress-bar-container">
+            <div class="progress-bar-fill" id="progressBarFill" style="width: 0%;"></div>
+          </div>
+          <div class="progress-task-list" id="progressTaskList">
+            <div class="empty-state">Loading tasks from PROJECT_PROGRESS.md...</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ZONE 4: Live Terminal & Streaming Log Output -->
+    <section class="card zone-terminal">
+      <div class="card-header">
+        <div class="card-title">
+          <span class="icon">💻</span>
+          <h3>Live Telemetry Stream & Terminal</h3>
+        </div>
+        <div class="terminal-controls">
+          <label class="toggle-label">
+            <input type="checkbox" id="chkAutoScroll" checked>
+            <span>Auto-Scroll</span>
+          </label>
+          <button class="btn-pill" id="btnClearTerminal">Clear</button>
+        </div>
+      </div>
+      <div class="terminal-window" id="terminalWindow">
+        <div class="term-line term-system">[SYSTEM] Connected to VicnovaLabs Squad Telemetry Bus (localhost).</div>
+        <div class="term-line term-info">[SYSTEM] Listening on SSE channel for real-time tool calls & token telemetry...</div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <span>VicnovaLabs SQUAD v2.2.0 — Multi-IDE Autonomous Agent Framework</span>
+    <span class="footer-links">
+      <a href="https://github.com/vicnovalabs" target="_blank" rel="noreferrer">Documentation</a> • 
+      <span id="serverUptime">Uptime: 0s</span>
+    </span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

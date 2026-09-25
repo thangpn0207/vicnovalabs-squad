@@ -10,6 +10,70 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 
 
+MAX_SUBAGENT_TOOL_CALLS = 25
+MAX_SUBAGENT_SCREENSHOTS = 3
+MAX_IDENTICAL_TOOL_REPEATS = 3
+
+
+def audit_transcript_content(lines: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Inspects transcript entries for runaway tool calls, screenshot loops, and identical command cycles."""
+    tool_calls = []
+    screencap_count = 0
+    commands = []
+
+    for entry in lines:
+        tcs = entry.get("tool_calls", [])
+        for tc in tcs:
+            tname = tc.get("name")
+            tool_calls.append(tname)
+            args = tc.get("args", {})
+            cmd = args.get("CommandLine", "")
+            fpath = args.get("AbsolutePath", "")
+            if tname == "run_command" and cmd:
+                commands.append(cmd.strip())
+                if "screencap" in cmd.lower():
+                    screencap_count += 1
+            elif tname == "view_file" and fpath:
+                if any(ext in fpath.lower() for ext in [".png", ".jpg", ".jpeg", ".webp"]):
+                    screencap_count += 1
+
+    total_tool_calls = len(tool_calls)
+    issues = []
+
+    if total_tool_calls > MAX_SUBAGENT_TOOL_CALLS:
+        issues.append({
+            "error_type": "EXCESSIVE_TOOL_CALL_LOOP",
+            "detail": f"Subagent exceeded max tool call limit ({total_tool_calls} > {MAX_SUBAGENT_TOOL_CALLS}) without completion.",
+            "action": "KILL_IMMEDIATELY"
+        })
+
+    if screencap_count > MAX_SUBAGENT_SCREENSHOTS:
+        issues.append({
+            "error_type": "SCREENSHOT_LOOP_VIOLATION",
+            "detail": f"Subagent triggered excessive screenshot/view_file calls ({screencap_count} > {MAX_SUBAGENT_SCREENSHOTS}), violating Rule L.3.",
+            "action": "KILL_IMMEDIATELY"
+        })
+
+    # Check for identical command repeats (3 identical commands in a row)
+    if len(commands) >= MAX_IDENTICAL_TOOL_REPEATS:
+        for i in range(len(commands) - MAX_IDENTICAL_TOOL_REPEATS + 1):
+            window = commands[i:i+MAX_IDENTICAL_TOOL_REPEATS]
+            if len(set(window)) == 1:
+                issues.append({
+                    "error_type": "IDENTICAL_COMMAND_LOOP",
+                    "detail": f"Subagent repeated identical command {MAX_IDENTICAL_TOOL_REPEATS} times: '{window[0][:80]}'",
+                    "action": "KILL_IMMEDIATELY"
+                })
+                break
+
+    return {
+        "total_tool_calls": total_tool_calls,
+        "screencap_count": screencap_count,
+        "issues": issues,
+        "is_looping": len(issues) > 0
+    }
+
+
 def audit_subagents_health(subagents_input: Any, expected_files: Optional[List[str]] = None) -> Dict[str, Any]:
     """
     Subagent Watchdog & Zero-Zombie Circuit Breaker:
@@ -87,6 +151,29 @@ def audit_subagents_health(subagents_input: Any, expected_files: Optional[List[s
                 "detail": agent.get("stateDetail", "Subagent execution errored"),
                 "action": "KILL_IMMEDIATELY"
             })
+
+        # Deep Transcript Loop Inspection (Rule L.3 & Finite Step Budget)
+        t_uri = agent.get("transcript")
+        if t_uri:
+            t_path = t_uri.replace("file://", "")
+            p_trans = Path(t_path)
+            if p_trans.exists() and p_trans.is_file():
+                try:
+                    with open(p_trans, "r", encoding="utf-8") as tf:
+                        t_lines = [json.loads(line) for line in tf if line.strip()]
+                    t_eval = audit_transcript_content(t_lines)
+                    for t_issue in t_eval.get("issues", []):
+                        kill_ids.append(cid)
+                        issues.append({
+                            "conversationId": cid,
+                            "role": role,
+                            "state": state,
+                            "error_type": t_issue["error_type"],
+                            "detail": t_issue["detail"],
+                            "action": "KILL_IMMEDIATELY"
+                        })
+                except Exception:
+                    pass
 
     # Output file heartbeat check
     missing_files = []

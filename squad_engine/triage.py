@@ -76,67 +76,67 @@ PHASE_SKILL_PROFILES = {
 
 RECOMMENDED_SKILLS_CATALOG = {
     "ponytail": {
-        "role": "dev-agent",
+        "role": "squad-dev",
         "description": "Minimalist coding & YAGNI: Stdlib before external dependencies, native APIs first"
     },
     "safe-refactor": {
-        "role": "dev-agent / debug-agent",
+        "role": "squad-dev / squad-debug",
         "description": "Behavior-preserving refactoring with bracketed edits"
     },
     "composition-patterns": {
-        "role": "dev-agent",
+        "role": "squad-dev",
         "description": "Compound components, custom hooks, avoiding boolean prop hell"
     },
     "test-driven-development": {
-        "role": "dev-agent",
+        "role": "squad-dev",
         "description": "Red-Green-Refactor scaffolding and deterministic unit tests"
     },
     "agent-device": {
-        "role": "qa-agent / dev-agent",
+        "role": "squad-qa / squad-dev",
         "description": "Callstack mobile automation via semantic accessibility trees (Zero screenshot loops)"
     },
     "playwright": {
-        "role": "qa-agent / dev-agent",
+        "role": "squad-qa / squad-dev",
         "description": "Isolated browser automation with mandatory try...finally lifecycle"
     },
     "accesslint-scan": {
-        "role": "qa-agent",
+        "role": "squad-qa",
         "description": "WCAG accessibility and contrast ratio audit"
     },
     "stop-slop": {
-        "role": "qa-agent / marketing-agent",
+        "role": "squad-qa / squad-marketing",
         "description": "Filters out AI clichés, throat-clearing fluff, and passive empty phrasing"
     },
     "ui-ux-pro-max": {
-        "role": "design-agent",
+        "role": "squad-design",
         "description": "Design intelligence across 50 styles, 21 palettes, and component specs"
     },
     "apple-design": {
-        "role": "design-agent",
+        "role": "squad-design",
         "description": "Apple Human Interface Guidelines (HIG), fluid springs, blur materials, Safe Areas"
     },
     "huashu-design": {
-        "role": "design-agent",
+        "role": "squad-design",
         "description": "Spatial hierarchy, weightless depth, glassmorphism, responsive bento grids"
     },
     "systematic-debugging": {
-        "role": "debug-agent",
+        "role": "squad-debug",
         "description": "Root-cause investigation first before proposing or touching code"
     },
     "surgical-patch": {
-        "role": "debug-agent",
+        "role": "squad-debug",
         "description": "Narrowest responsible layer bugfix preserving surrounding system behavior"
     },
     "before-you-build": {
-        "role": "ba-agent",
+        "role": "squad-ba",
         "description": "Product risk, demand evaluation, technical feasibility, and edge cases"
     },
     "writing-plans": {
-        "role": "ba-agent",
+        "role": "squad-ba",
         "description": "Phased implementation plans with explicit human review gates"
     },
     "avoid-ai-writing": {
-        "role": "marketing-agent",
+        "role": "squad-marketing",
         "description": "Audits and rewrites copy to eliminate 21 predictable AI writing patterns"
     }
 }

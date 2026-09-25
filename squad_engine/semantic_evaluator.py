@@ -85,7 +85,10 @@ class UnifiedSemanticAssessment:
 def _offline_fallback_evaluate(
     prompt: str,
     active_domain: Optional[str] = None,
-    platform: Optional[str] = None
+    platform: Optional[str] = None,
+    candidate_files: Optional[List[str]] = None,
+    diff_summary: Optional[Dict[str, Any]] = None,
+    workspace: Optional[str] = None
 ) -> Dict[str, Any]:
     text = prompt.lower()
     
@@ -208,25 +211,21 @@ def _offline_fallback_evaluate(
     else:
         hardware_requirement = "emulator_or_software"
 
-    # 6. Adversarial risk & domain
-    docs_pattern = r"\b(prd|srs|đặc\s*tả|spec|specification|requirement|user\s*story|design\s*doc)\b"
-    test_pattern = r"\b(test\s*plan|kịch\s*bản\s*test|kịch\s*bản\s*kiểm\s*thử|chiến\s*lược\s*test|test\s*strategy|acceptance\s*criteria)\b"
-    sec_pattern = r"\b(bảo\s*mật|security|auth|jwt|rbac|oauth|phân\s*quyền)\b"
-    arch_pattern = r"\b(kiến\s*trúc\s*mới|breaking\s*change|adr|tài\s*liệu\s*kiến\s*trúc)\b"
-    db_pattern = r"\b(migration|database\s*schema|cơ\s*sở\s*dữ\s*liệu)\b"
-
-    if re.search(sec_pattern, text):
+    # 6. Adversarial risk & domain — Tier A Path-Based Primary Signal (zero prompt regex)
+    from .scope_evaluator import evaluate_scope_risk, is_sensitive_path
+    scope_eval = evaluate_scope_risk(workspace_dir=workspace, touched_files=candidate_files, prompt=prompt)
+    if scope_eval.requires_adversarial_review:
         adversarial_risk = "requires_skeptic_review"
-        adversarial_target_domain = "auth_security"
-    elif re.search(arch_pattern, text):
-        adversarial_risk = "requires_skeptic_review"
-        adversarial_target_domain = "architecture"
-    elif re.search(db_pattern, text):
-        adversarial_risk = "requires_skeptic_review"
-        adversarial_target_domain = "database_migration"
-    elif re.search(docs_pattern, text) or re.search(test_pattern, text):
-        adversarial_risk = "requires_skeptic_review"
-        adversarial_target_domain = "docs_specification"
+        sens_files = [f for f in scope_eval.modified_files if is_sensitive_path(f)]
+        hit = sens_files[0].lower() if sens_files else ""
+        if any(k in hit for k in ["auth", "security", "rbac", "permission", ".env", "crypto"]):
+            adversarial_target_domain = "auth_security"
+        elif any(k in hit for k in ["migration", "schema"]):
+            adversarial_target_domain = "database_migration"
+        elif "payment" in hit:
+            adversarial_target_domain = "auth_security"
+        else:
+            adversarial_target_domain = "architecture"
     else:
         adversarial_risk = "standard_execution"
         adversarial_target_domain = "none"
@@ -245,6 +244,74 @@ def _offline_fallback_evaluate(
     }
 
 
+def classify_intent_tier_b(
+    prompt: str,
+    candidate_files: Optional[List[str]] = None,
+    diff_summary: Optional[Dict[str, Any]] = None,
+    workspace: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Tier B — Intent Classification via JEV (only when Tier A is inconclusive).
+    Accepts candidate file list / diff summary alongside prompt text.
+    Returns:
+      { "is_single_task": bool, "confidence": float, "reasoning": str }
+    """
+    files = candidate_files or []
+    stats = diff_summary or {"added": 0, "deleted": 0, "total": 0}
+    text = prompt.strip()
+
+    if files and len(files) <= 1 and stats.get("total", 0) <= 20:
+        return {
+            "is_single_task": True,
+            "confidence": 0.95,
+            "reasoning": f"single localized change in {files[0]}, {stats.get('total', 0)} lines, no new complex architecture"
+        }
+
+    client = get_typesafe_client()
+    if client:
+        try:
+            from typesafe_sdk import Choice
+            context_desc = f"Prompt: {text}\nCandidate Files: {files}\nDiff Summary: {stats}"
+            question = Choice(
+                instructions=(
+                    "Determine whether this task is a single bounded task or a multi-part composite task. "
+                    "A single bounded task implements or fixes one specific item/endpoint/screen. "
+                    "A multi-part composite task spans multiple unrelated subsystems or demands broad fan-out."
+                ),
+                criteria={
+                    "single": "Single isolated task or bounded feature/fix",
+                    "composite": "Multi-module, multi-phase, or composite task"
+                }
+            )
+            ans = client.ask(context_desc, {"is_single": question})
+            is_single = ans.get("is_single") == "single"
+            return {
+                "is_single_task": is_single,
+                "confidence": 0.85,
+                "reasoning": "Jev AI evaluated prompt with candidate file context and diff stats"
+            }
+        except Exception:
+            pass
+
+    from .scope_evaluator import evaluate_scope_risk
+    scope = evaluate_scope_risk(workspace_dir=workspace, touched_files=files, prompt=prompt)
+    if scope.is_fast_path:
+        return {
+            "is_single_task": True,
+            "confidence": 0.90,
+            "reasoning": "Tier A safe fast-path verified, bounded scope and lines"
+        }
+
+    # For text-only fallback without diff, only treat as single_task if prompt has clear isolated/read-only intent
+    single_pattern = r"\b(chỉ|chỉ làm|chỉ cần|duy nhất|one-off|single task|giải thích|tại sao|nghĩa là gì|explain|what is|how does|typo|rename|comment|1 dòng|single line|chỉnh 1 màu|sửa 1 nút)\b"
+    is_single = bool(re.search(single_pattern, text.lower()))
+    return {
+        "is_single_task": is_single,
+        "confidence": 0.85,
+        "reasoning": "evaluated prompt scope and single-task intent indicators"
+    }
+
+
 # ---------------------------------------------------------------------------
 # Main Semantic Evaluation Function
 # ---------------------------------------------------------------------------
@@ -252,6 +319,9 @@ def evaluate_task_semantics(
     prompt: str,
     active_domain: Optional[str] = None,
     platform: Optional[str] = None,
+    candidate_files: Optional[List[str]] = None,
+    diff_summary: Optional[Dict[str, Any]] = None,
+    workspace: Optional[str] = None,
     use_cache: bool = True
 ) -> Dict[str, Any]:
     """
@@ -267,11 +337,13 @@ def evaluate_task_semantics(
     Results are cached in an LRU cache (500 entries) for 0ms, 0-token instant lookups.
     """
     if not prompt or not prompt.strip():
-        fallback = _offline_fallback_evaluate("", active_domain, platform)
+        fallback = _offline_fallback_evaluate(
+            "", active_domain, platform, candidate_files=candidate_files, diff_summary=diff_summary, workspace=workspace
+        )
         return fallback
 
     # Check LRU cache
-    if use_cache:
+    if use_cache and not candidate_files:
         cached = _GLOBAL_SEMANTIC_CACHE.get(prompt, active_domain, platform)
         if cached is not None:
             res = dict(cached)
@@ -341,7 +413,7 @@ def evaluate_task_semantics(
                 "adversarial_risk": Choice(
                     instructions=(
                         "Determine if this task involves high-impact architecture, auth, security, RBAC, database migration, "
-                        "or formal specifications (PRD/SRS) that require a skeptical adversarial review (Red Team / debug-agent)."
+                        "or formal specifications (PRD/SRS) that require a skeptical adversarial review (Red Team / squad-debug)."
                     ),
                     criteria={
                         "requires_skeptic_review": "High-impact changes: PRD/SRS specs, new architecture, auth/RBAC security, database migration, or test strategy",
@@ -408,10 +480,18 @@ def evaluate_task_semantics(
             is_running_qa = bool(re.search(r"\b(chạy\s*(?:bộ\s*)?test|run\s*test|nghiệm\s*thu|qa[\s-]agent|playwright|e2e|smoke\s*test)\b", t_low))
             is_writing_strategy = bool(re.search(r"\b(lập\s*test\s*plan|kịch\s*bản\s*test|kịch\s*bản\s*kiểm\s*thử|chiến\s*lược\s*test|test\s*strategy)\b", t_low))
 
+            is_dev_test_infra = bool(re.search(
+                r"\b(implement|refactor|viết|code|build|tạo)\s+.*(test\s*runner|test\s*framework|unit\s*test|fixture|test\s*suite)", t_low
+            )) or bool(re.search(r"\b(implement|refactor|viết|code|build)\s+.*(cho\s*qa|cho\s*(?:đội\s*)?kiểm\s*thử|for\s*qa)\b", t_low))
+
             if is_running_qa and not is_writing_strategy:
                 adv_risk = "standard_execution"
                 adv_domain = "none"
                 role = "qa"
+            elif is_dev_test_infra:
+                adv_risk = "standard_execution"
+                adv_domain = "none"
+                role = "dev"
             elif docs_match:
                 adv_risk = "requires_skeptic_review"
                 if adv_domain == "none":
